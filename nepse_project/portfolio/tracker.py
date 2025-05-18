@@ -24,6 +24,12 @@ class Portfolio:
             else:
                 self.holdings[symbol]['quantity'] = new_qty
 
+    def get_quantity(self, symbol):
+        """Return the quantity owned for the given stock symbol, or 0 if none."""
+        if symbol in self.holdings:
+            return self.holdings[symbol]['quantity']
+        return 0
+
     def get_portfolio_value(self):
         total_value = 0
         for symbol, info in self.holdings.items():
