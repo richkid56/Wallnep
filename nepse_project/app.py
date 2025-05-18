@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-import math
 from data import nepse_api
 from analysis import screener, signals
 from portfolio import tracker
@@ -70,10 +69,31 @@ summary = port.summary()
 summary_df = pd.DataFrame(summary)
 st.dataframe(summary_df)
 
-# Stock Signal Checker with budget input
+# Check quantity owned for any symbol
+st.header("Check Your Holdings")
+check_symbol = st.text_input("Enter stock symbol to check your quantity", key="check_qty")
+
+if check_symbol:
+    owned_qty = port.get_quantity(check_symbol.upper())
+    st.write(f"You currently own {owned_qty} shares of {check_symbol.upper()}")
+
+# Budget to quantity calculator
+st.header("Calculate Quantity Based on Budget")
+budget_symbol = st.text_input("Enter stock symbol for budget calculation", key="budget_sym")
+budget_amount = st.number_input("Enter your budget amount (Rs.)", min_value=0.0, format="%.2f", key="budget_amt")
+
+if budget_symbol and budget_amount > 0:
+    live_data = nepse_api.get_live_price(budget_symbol.upper())
+    if live_data and 'last_price' in live_data:
+        price = float(live_data['last_price'])
+        possible_qty = int(budget_amount // price)
+        st.write(f"With Rs. {budget_amount:.2f}, you can buy approximately {possible_qty} shares of {budget_symbol.upper()} at Rs. {price:.2f} per share.")
+    else:
+        st.write("Failed to fetch live price for the symbol.")
+
+# Signal checking for selected stock
 st.header("Stock Signal Checker")
-stock_for_signal = st.text_input("Enter stock symbol for signals")
-budget = st.number_input("Enter your budget for buying (NPR)", min_value=0.0, format="%.2f", step=100)
+stock_for_signal = st.text_input("Enter stock symbol for signals", key="signal_check")
 
 if stock_for_signal:
     live_data = nepse_api.get_live_price(stock_for_signal.upper())
@@ -82,64 +102,15 @@ if stock_for_signal:
         df = signals.generate_signals(df)
         st.line_chart(df[['rsi', 'macd', 'macd_signal', 'ema_short', 'ema_long']])
         latest = df.iloc[-1]
-
-        rsi = latest['rsi']
-        current_price = float(live_data['last_price'])
-        owned_quantity = port.get_quantity(stock_for_signal.upper())
-
-        if rsi < 30:
+        if latest['buy_signal']:
             st.success("Buy Signal")
-            quantity_to_buy = math.floor(budget / current_price) if budget > 0 else 0
-            message = (
-                f"📈 BUY ALERT\n"
-                f"Stock: {stock_for_signal.upper()}\n"
-                f"Price: Rs. {current_price}\n"
-                f"RSI: {rsi:.2f} (Oversold)\n\n"
-                f"Based on your budget of Rs. {budget:.2f}, you can buy approximately {quantity_to_buy} shares.\n\n"
-                "What does this mean?\n"
-                "- RSI below 30 means the stock is oversold.\n"
-                "- It might be undervalued right now.\n\n"
-                "What should you do?\n"
-                "- Consider buying this stock now.\n"
-                "- Watch price closely for confirmation.\n"
-                "- Don’t invest more than you can afford to lose."
-            )
+            message = f"📈 BUY ALERT:\n{stock_for_signal.upper()} at Rs. {live_data['last_price']}\nRSI: {latest['rsi']:.2f}"
             send_telegram_message(message)
-
-        elif rsi > 70:
+        elif latest['sell_signal']:
             st.error("Sell Signal")
-            message = (
-                f"📉 SELL ALERT\n"
-                f"Stock: {stock_for_signal.upper()}\n"
-                f"Price: Rs. {current_price}\n"
-                f"RSI: {rsi:.2f} (Overbought)\n\n"
-                f"You currently own {owned_quantity} shares.\n\n"
-                "What does this mean?\n"
-                "- RSI above 70 means the stock is overbought.\n"
-                "- The price might drop soon.\n\n"
-                "What should you do?\n"
-                "- Consider selling or taking profit.\n"
-                "- Keep an eye on market news.\n"
-                "- Avoid panic selling; wait for clear drop if unsure."
-            )
+            message = f"📉 SELL ALERT:\n{stock_for_signal.upper()} at Rs. {live_data['last_price']}\nRSI: {latest['rsi']:.2f}"
             send_telegram_message(message)
-
         else:
-            st.info("Hold Signal")
-            message = (
-                f"ℹ️ HOLD\n"
-                f"Stock: {stock_for_signal.upper()}\n"
-                f"Price: Rs. {current_price}\n"
-                f"RSI: {rsi:.2f} (Neutral)\n\n"
-                "What does this mean?\n"
-                "- RSI between 30 and 70 means no strong signal.\n"
-                "- The stock price is stable or uncertain.\n\n"
-                "What should you do?\n"
-                "- Wait for clearer signal before buying or selling.\n"
-                "- Monitor stock trends regularly.\n"
-                "- Patience is key in stock trading."
-            )
-            send_telegram_message(message)
-
+            st.info("No clear signal")
     else:
         st.write("Failed to fetch live price for the symbol.")
