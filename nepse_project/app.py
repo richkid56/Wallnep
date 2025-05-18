@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 from data import nepse_api
-from analysis import screener, signals
-from portfolio import tracker
 
 # Telegram setup
 TELEGRAM_TOKEN = "8163503683:AAEyo-rQN_6L2iYbxqix_ki0nebuLyvYbmQ"
@@ -20,11 +18,10 @@ def send_telegram_message(message):
 st.set_page_config(page_title="NEPSE Live Dashboard", layout="wide")
 st.title("NEPSE Live Market Dashboard")
 
-# Show indices
+# Market Indices
 st.header("Market Indices")
 indices = nepse_api.get_indices()
-if indices and isinstance(indices, dict) and 'data' in indices:
-    # Depending on API structure, adjust this
+if indices and 'data' in indices:
     indices_df = pd.DataFrame(indices['data'])
     st.dataframe(indices_df)
 else:
@@ -33,18 +30,18 @@ else:
 # Floorsheet
 st.header("Recent Trades (Floorsheet)")
 floorsheet = nepse_api.get_floorsheet()
-if floorsheet and isinstance(floorsheet, dict) and 'data' in floorsheet:
+if floorsheet and 'data' in floorsheet:
     floorsheet_df = pd.DataFrame(floorsheet['data']).head(20)
     st.dataframe(floorsheet_df)
 else:
     st.write("Failed to fetch floorsheet data.")
 
-# Screener
+# Stock Screener
 st.header("Stock Screener")
 stocks = nepse_api.get_stocks()
-if stocks and isinstance(stocks, dict) and 'data' in stocks:
+if stocks and 'data' in stocks:
     stocks_df = pd.DataFrame(stocks['data'])
-    # Example screener filters: top gainers, top losers, volume movers
+    # Sort top gainers, losers, volume movers
     top_gainers = stocks_df.sort_values(by='percent_change', ascending=False).head(10)
     top_losers = stocks_df.sort_values(by='percent_change').head(10)
     volume_movers = stocks_df.sort_values(by='volume', ascending=False).head(10)
@@ -58,50 +55,23 @@ if stocks and isinstance(stocks, dict) and 'data' in stocks:
     st.subheader("Volume Movers")
     st.dataframe(volume_movers)
 else:
-    st.write("Failed to fetch stock data for screener.")
+    st.write("Failed to fetch stock data.")
 
-# Portfolio
-st.header("My Portfolio")
-port = tracker.Portfolio()
+# Live Price Checker and Basic Alert
+st.header("Live Price Checker")
+stock_symbol = st.text_input("Enter Stock Symbol (e.g., NABIL)").upper()
 
-with st.form(key='portfolio_form'):
-    symbol = st.text_input("Stock Symbol (e.g., NABIL)")
-    quantity = st.number_input("Quantity", min_value=1, step=1)
-    avg_price = st.number_input("Average Price", min_value=0.0, format="%.2f")
-    submit = st.form_submit_button("Add/Update Stock")
-
-if submit and symbol:
-    port.add_stock(symbol.upper(), quantity, avg_price)
-    st.success(f"Added/Updated {symbol.upper()} in portfolio.")
-
-summary = port.summary()
-if summary:
-    summary_df = pd.DataFrame(summary)
-    st.dataframe(summary_df)
-else:
-    st.write("Portfolio is empty.")
-
-# Signal checking for selected stock
-st.header("Stock Signal Checker")
-stock_for_signal = st.text_input("Enter stock symbol for signals")
-
-if stock_for_signal:
-    live_data = nepse_api.get_live_price(stock_for_signal.upper())
-    if live_data and isinstance(live_data, dict) and 'data' in live_data and 'last_price' in live_data['data']:
+if stock_symbol:
+    live_data = nepse_api.get_live_price(stock_symbol)
+    if live_data and 'data' in live_data and 'last_price' in live_data['data']:
         last_price = float(live_data['data']['last_price'])
-        df = pd.DataFrame({"close": [last_price]*50})  # Dummy historical data for demo
-        df = signals.generate_signals(df)
-        st.line_chart(df[['rsi', 'macd', 'macd_signal', 'ema_short', 'ema_long']])
-        latest = df.iloc[-1]
-        if latest['buy_signal']:
-            st.success("Buy Signal")
-            message = f"📈 BUY ALERT:\n{stock_for_signal.upper()} at Rs. {last_price}\nRSI: {latest['rsi']:.2f}"
+        st.write(f"Current price of {stock_symbol}: Rs. {last_price}")
+        
+        # Example: Simple alert if price is above some threshold (adjust as needed)
+        # You can build your own conditions here for buy/sell signals
+        if last_price > 1000:  # example threshold
+            message = f"🚨 Alert: {stock_symbol} price is Rs. {last_price}"
             send_telegram_message(message)
-        elif latest['sell_signal']:
-            st.error("Sell Signal")
-            message = f"📉 SELL ALERT:\n{stock_for_signal.upper()} at Rs. {last_price}\nRSI: {latest['rsi']:.2f}"
-            send_telegram_message(message)
-        else:
-            st.info("No clear signal")
+            st.success("Telegram alert sent!")
     else:
         st.write("Failed to fetch live price for the symbol.")
