@@ -1,6 +1,6 @@
 # data/nepse_api.py
 import asyncio
-from nepse import Nepse
+from nepse_api import Nepse  # Correct import
 
 nepse = Nepse()
 
