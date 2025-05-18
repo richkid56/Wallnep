@@ -1,31 +1,33 @@
-import requests
+# data/nepse_api.py
+import asyncio
+from nepse import Nepse
 
-BASE_URL = "https://nepse-data-api.onrender.com"
-
-def get_live_price(symbol):
-    url = f"{BASE_URL}/price/{symbol}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
-
-def get_all_stocks():
-    url = f"{BASE_URL}/stocks"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
+nepse = Nepse()
 
 def get_indices():
-    url = f"{BASE_URL}/indices"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
+    try:
+        return asyncio.run(nepse.get_indices())
+    except Exception as e:
+        print("Error fetching indices:", e)
+        return None
+
+def get_stocks():
+    try:
+        return asyncio.run(nepse.get_stocks())
+    except Exception as e:
+        print("Error fetching stocks:", e)
+        return None
+
+def get_live_price(symbol):
+    try:
+        return asyncio.run(nepse.get_live_price(symbol))
+    except Exception as e:
+        print(f"Error fetching live price for {symbol}:", e)
+        return None
 
 def get_floorsheet():
-    url = f"{BASE_URL}/floorsheet"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
+    try:
+        return asyncio.run(nepse.get_floorsheet())
+    except Exception as e:
+        print("Error fetching floorsheet:", e)
+        return None
